@@ -1,26 +1,20 @@
-name: Build IPA (Xcode 26)
+name: Build IPA (unsigned for jailbroken)
 
 on:
   workflow_dispatch:
 
 jobs:
   build:
-    runs-on: macos-26   # 或 macos-15 / macos-15-arm64
+    runs-on: macos-26
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Xcode
-        uses: maxim-lobanov/setup-xcode@v1
+      - uses: maxim-lobanov/setup-xcode@v1
         with:
           xcode-version: latest-stable
-          # 或者明确指定：
-          # xcode-version: "26.1"
 
-      - name: Show Xcode version
-        run: xcodebuild -version
-
-      - name: Build archive
+      - name: Build archive (NO SIGNING)
         run: |
           xcodebuild clean archive \
             -project *.xcodeproj \
@@ -28,31 +22,21 @@ jobs:
             -archivePath build/App.xcarchive \
             -configuration Release \
             -destination 'generic/platform=iOS' \
-            -allowProvisioningUpdates
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY=""
 
-      - name: Export IPA
+      - name: Create unsigned IPA
         run: |
-          cat > ExportOptions.plist <<EOF
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
-           "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-            <key>method</key>
-            <string>development</string>
-            <key>signingStyle</key>
-            <string>automatic</string>
-          </dict>
-          </plist>
-          EOF
+          APP_PATH=$(find build/App.xcarchive -name "*.app" | head -1)
 
-          xcodebuild -exportArchive \
-            -archivePath build/App.xcarchive \
-            -exportPath build/output \
-            -exportOptionsPlist ExportOptions.plist
+          mkdir -p Payload
+          cp -R "$APP_PATH" Payload/
+
+          zip -r ADHDAlarms-unsigned.ipa Payload
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
           name: ipa
-          path: build/output/*.ipa
+          path: ADHDAlarms-unsigned.ipa
